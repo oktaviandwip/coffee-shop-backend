@@ -14,7 +14,7 @@ CREATE TABLE products (
 	start_hour TIME NOT NULL,
 	end_hour TIME NOT NULL,
 	stock INT NOT NULL,
-	type VARCHAR(255) NOT NULL
+	product_type VARCHAR(255) NOT NULL
 	created_at TIMESTAMP NOT NULL DEFAULT NOW(),
 	updated_at TIMESTAMP NULL
 );
