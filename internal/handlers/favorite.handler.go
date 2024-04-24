@@ -37,6 +37,7 @@ func (h *HandlerFavorite) PostFavorite(ctx *gin.Context) {
 
 // Get Favorite
 func (h *HandlerFavorite) GetFavorite(ctx *gin.Context) {
+	user_id := ctx.Query("user_id")
 	page, err := strconv.Atoi(ctx.Query("page"))
 	if err != nil {
 		pkg.Response(ctx.Writer, http.StatusBadRequest, err.Error())
@@ -44,7 +45,7 @@ func (h *HandlerFavorite) GetFavorite(ctx *gin.Context) {
 	}
 	offset := (page - 1) * 10
 
-	result, err := h.ReadFavorite(offset)
+	result, err := h.ReadFavorite(user_id, offset)
 	if err != nil {
 		pkg.Response(ctx.Writer, http.StatusBadRequest, err.Error())
 		return

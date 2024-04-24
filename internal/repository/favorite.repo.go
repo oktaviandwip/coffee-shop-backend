@@ -36,11 +36,11 @@ func (r *RepoFavorite) CreateFavorite(data *models.Favorite) (string, error) {
 }
 
 // Get Favorite
-func (r *RepoFavorite) ReadFavorite(offset int) ([]*models.Favorite, error) {
-	q := `SELECT * FROM public.favorites LIMIT $1 OFFSET $2`
+func (r *RepoFavorite) ReadFavorite(user_id string, offset int) ([]*models.Favorite, error) {
+	q := `SELECT * FROM public.favorites WHERE user_id = $1 LIMIT $2 OFFSET $3`
 
 	limit := 10
-	rows, err := r.Queryx(q, limit, offset)
+	rows, err := r.Queryx(q, user_id, limit, offset)
 	if err != nil {
 		return nil, err
 	}

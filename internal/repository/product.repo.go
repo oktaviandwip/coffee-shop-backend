@@ -20,28 +20,28 @@ func NewProduct(db *sqlx.DB) *RepoProduct {
 // Create Product
 func (r *RepoProduct) CreateProduct(data *models.Product) (string, error) {
 	q := `INSERT INTO public.products(
-							photo_product,
-							product_name,
-							price,
-							description,
-							size,
-							delivery_method,
-							start_hour,
-							end_hour,
-							stock,
-							product_type
+					photo_product,
+					product_name,
+					price,
+					description,
+					size,
+					delivery_method,
+					start_hour,
+					end_hour,
+					stock,
+					product_type
 			)
 			VALUES(
-							$1,
-							$2,
-							$3,
-							$4,
-							$5,
-							$6,
-							$7,
-							$8,
-							$9,
-							$10
+					$1,
+					$2,
+					$3,
+					$4,
+					$5,
+					$6,
+					$7,
+					$8,
+					$9,
+					$10
 			)`
 
 	size := pq.Array(data.Size)
@@ -275,7 +275,7 @@ func (r *RepoProduct) UpdateProduct(id string, data *models.Product) (string, er
 	}
 
 	if rowsAffected == 0 {
-		return "", errors.New("no user was updated ")
+		return "", errors.New("no product was updated ")
 	}
 
 	return "1 data product updated", nil
@@ -300,7 +300,7 @@ func (r *RepoProduct) RemoveProduct(id string, data *models.Product) (string, er
 	}
 
 	if rowsAffected == 0 {
-		return "", errors.New("no user was deleted ")
+		return "", errors.New("no product was deleted ")
 	}
 
 	return "1 data product deleted", nil
