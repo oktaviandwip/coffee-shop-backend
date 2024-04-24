@@ -46,6 +46,7 @@ func Response(w http.ResponseWriter, statusCode int, result interface{}) {
 			response["message"] = message
 		} else if result != nil && reflect.TypeOf(result).Kind() == reflect.Slice {
 			response["data"] = result
+			response["length"] = reflect.ValueOf(result).Len()
 		}
 	}
 
