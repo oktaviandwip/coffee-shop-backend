@@ -1,8 +1,9 @@
 package routers
 
 import (
-	"coffee/internal/handlers"
-	"coffee/internal/repository"
+	"coffeeshop/internal/handlers"
+	"coffeeshop/internal/middleware"
+	"coffeeshop/internal/repository"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jmoiron/sqlx"
@@ -14,8 +15,8 @@ func user(g *gin.Engine, d *sqlx.DB) {
 	repo := repository.NewUser(d)
 	handler := handlers.NewUser(repo)
 
-	route.POST("/", handler.PostUser)
-	route.GET("/", handler.GetUser)
-	route.PATCH("/:id", handler.PatchUser)
-	route.DELETE("/:id", handler.DeleteUser)
+	route.POST("/", middleware.UploadFile, handler.PostUser)
+	route.GET("/:id", middleware.AuthJwt("admin", "user"), handler.GetUser)
+	route.PATCH("/:id", middleware.AuthJwt("admin", "user"), middleware.UploadFile, handler.PatchUser)
+	route.DELETE("/:id", middleware.AuthJwt("admin", "user"), handler.DeleteUser)
 }

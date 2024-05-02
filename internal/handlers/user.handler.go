@@ -1,97 +1,124 @@
 package handlers
 
 import (
-	"coffee/internal/models"
-	"coffee/internal/repository"
-	"coffee/pkg"
-	"fmt"
-	"net/http"
-	"strconv"
+	"coffeeshop/config"
+	"coffeeshop/internal/models"
+	"coffeeshop/internal/repository"
+	"coffeeshop/pkg"
 
+	"github.com/asaskevich/govalidator"
 	"github.com/gin-gonic/gin"
 )
 
 type HandlerUser struct {
-	*repository.RepoUser
+	repository.RepoUserIF
 }
 
-func NewUser(r *repository.RepoUser) *HandlerUser {
+func NewUser(r repository.RepoUserIF) *HandlerUser {
 	return &HandlerUser{r}
 }
 
 // Create User
 func (h *HandlerUser) PostUser(ctx *gin.Context) {
-	var user models.User
+	var err error
+	user := models.User{
+		Role: "user",
+	}
 
 	if err := ctx.ShouldBind(&user); err != nil {
-		pkg.Response(ctx.Writer, http.StatusBadRequest, err.Error())
+		pkg.NewRes(400, &config.Result{
+			Data: err.Error(),
+		}).Send(ctx)
+		return
+	}
+	user.Photo_profile = ctx.MustGet("profileImage").(string)
+
+	_, err = govalidator.ValidateStruct(&user)
+	if err != nil {
+		pkg.NewRes(401, &config.Result{
+			Data: err.Error(),
+		}).Send(ctx)
+		return
+	}
+
+	user.Password, err = pkg.HashPassword(user.Password)
+	if err != nil {
+		pkg.NewRes(401, &config.Result{
+			Data: err.Error(),
+		}).Send(ctx)
 		return
 	}
 
 	result, err := h.CreateUser(&user)
 	if err != nil {
-		pkg.Response(ctx.Writer, http.StatusBadRequest, err.Error())
+		pkg.NewRes(400, &config.Result{
+			Data: err.Error(),
+		}).Send(ctx)
 		return
 	}
 
-	pkg.Response(ctx.Writer, http.StatusCreated, result)
+	pkg.NewRes(201, result).Send(ctx)
 }
 
 // Get User
 func (h *HandlerUser) GetUser(ctx *gin.Context) {
-	page, err := strconv.Atoi(ctx.Query("page"))
-	if err != nil {
-		pkg.Response(ctx.Writer, http.StatusBadRequest, err.Error())
-		return
-	}
-	offset := (page - 1) * 10
+	id := ctx.Param("id")
 
-	result, err := h.ReadUser(offset)
+	result, err := h.FetchUser(id)
 	if err != nil {
-		pkg.Response(ctx.Writer, http.StatusBadRequest, err.Error())
+		pkg.NewRes(400, &config.Result{
+			Data: err.Error(),
+		}).Send(ctx)
 		return
 	}
 
-	pkg.Response(ctx.Writer, http.StatusOK, result)
+	pkg.NewRes(200, result).Send(ctx)
 }
 
 // Update User
 func (h *HandlerUser) PatchUser(ctx *gin.Context) {
 	id := ctx.Param("id")
-
-	var user models.User
+	user := models.User{}
+	var err error
 
 	if err := ctx.ShouldBind(&user); err != nil {
-		pkg.Response(ctx.Writer, http.StatusBadRequest, err.Error())
+		pkg.NewRes(400, &config.Result{
+			Data: err.Error(),
+		}).Send(ctx)
+		return
+	}
+	user.Photo_profile = ctx.MustGet("profileImage").(string)
+
+	_, err = govalidator.ValidateStruct(&user)
+	if err != nil {
+		pkg.NewRes(401, &config.Result{
+			Data: err.Error(),
+		}).Send(ctx)
 		return
 	}
 
 	result, err := h.UpdateUser(id, &user)
 	if err != nil {
-		fmt.Println(err)
-		pkg.Response(ctx.Writer, http.StatusBadRequest, err.Error())
+		pkg.NewRes(400, &config.Result{
+			Data: err.Error(),
+		}).Send(ctx)
 		return
 	}
 
-	pkg.Response(ctx.Writer, http.StatusOK, result)
+	pkg.NewRes(200, result).Send(ctx)
 }
 
 // Delete User
 func (h *HandlerUser) DeleteUser(ctx *gin.Context) {
 	id := ctx.Param("id")
 
-	var user models.User
-
-	if err := ctx.ShouldBind(&user); err != nil {
-		pkg.Response(ctx.Writer, http.StatusBadRequest, err.Error())
-		return
-	}
-
-	result, err := h.RemoveUser(id, &user)
+	result, err := h.RemoveUser(id)
 	if err != nil {
-		pkg.Response(ctx.Writer, http.StatusBadRequest, err.Error())
+		pkg.NewRes(400, &config.Result{
+			Data: err.Error(),
+		}).Send(ctx)
 		return
 	}
 
-	pkg.Response(ctx.Writer, http.StatusOK, result)
+	pkg.NewRes(200, result).Send(ctx)
 }

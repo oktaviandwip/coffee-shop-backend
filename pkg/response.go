@@ -1,55 +1,69 @@
 package pkg
 
 import (
-	"encoding/json"
-	"net/http"
-	"reflect"
+	"coffeeshop/config"
+
+	"github.com/gin-gonic/gin"
 )
 
-func Response(w http.ResponseWriter, statusCode int, result interface{}) {
-	desc := ""
+type Response struct {
+	Code        int         `json:"-"`
+	Status      string      `json:"status"`
+	Data        interface{} `json:"data,omitempty"`
+	Meta        interface{} `json:"meta,omitempty"`
+	Description interface{} `json:"description,omitempty"`
+}
 
-	switch statusCode {
-	case http.StatusOK:
+func (r *Response) Send(ctx *gin.Context) {
+	ctx.JSON(r.Code, r)
+	ctx.Abort()
+}
+
+func NewRes(code int, data *config.Result) *Response {
+	var response = Response{
+		Code:   code,
+		Status: getStatus(code),
+	}
+
+	if response.Code >= 400 {
+		response.Description = data.Data
+	} else if data.Message != nil {
+		response.Description = data.Message
+	} else {
+		response.Data = data.Data
+	}
+
+	if data.Meta != nil {
+		response.Meta = data.Meta
+	}
+
+	return &response
+}
+
+func getStatus(status int) string {
+	var desc string
+	switch status {
+	case 200:
 		desc = "OK"
-	case http.StatusCreated:
+	case 201:
 		desc = "Created"
-	case http.StatusNoContent:
-		desc = "No Content"
-	case http.StatusBadRequest:
+	case 400:
 		desc = "Bad Request"
-	case http.StatusUnauthorized:
+	case 401:
 		desc = "Unauthorized"
-	case http.StatusNotFound:
-		desc = "Page Not Found"
-	case http.StatusInternalServerError:
+	case 403:
+		desc = "Forbidden"
+	case 404:
+		desc = "Not Found"
+	case 500:
 		desc = "Internal Server Error"
-	case http.StatusBadGateway:
+	case 501:
 		desc = "Bad Gateway"
-	case http.StatusNotModified:
+	case 304:
 		desc = "Not Modified"
 	default:
 		desc = ""
 	}
 
-	response := map[string]interface{}{
-		"status": statusCode,
-		"desc":   desc,
-	}
-
-	if statusCode >= http.StatusInternalServerError {
-		if err, ok := result.(string); ok {
-			response["error"] = err
-		}
-	} else if statusCode >= http.StatusOK {
-		if message, ok := result.(string); ok {
-			response["message"] = message
-		} else if result != nil && reflect.TypeOf(result).Kind() == reflect.Slice {
-			response["data"] = result
-			response["length"] = reflect.ValueOf(result).Len()
-		}
-	}
-
-	w.WriteHeader(statusCode)
-	json.NewEncoder(w).Encode(response)
+	return desc
 }

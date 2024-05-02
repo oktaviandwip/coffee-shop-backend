@@ -1,39 +1,54 @@
 package handlers
 
 import (
-	"coffee/internal/models"
-	"coffee/internal/repository"
-	"coffee/pkg"
-	"net/http"
+	"coffeeshop/config"
+	"coffeeshop/internal/models"
+	"coffeeshop/internal/repository"
+	"coffeeshop/pkg"
 	"strconv"
 
+	"github.com/asaskevich/govalidator"
 	"github.com/gin-gonic/gin"
 )
 
 type HandlerProduct struct {
-	*repository.RepoProduct
+	repository.RepoProductIF
 }
 
-func NewProduct(r *repository.RepoProduct) *HandlerProduct {
+func NewProduct(r repository.RepoProductIF) *HandlerProduct {
 	return &HandlerProduct{r}
 }
 
 // Create Product
 func (h *HandlerProduct) PostProduct(ctx *gin.Context) {
-	var product models.Product
+	var err error
+	product := models.Product{}
 
 	if err := ctx.ShouldBind(&product); err != nil {
-		pkg.Response(ctx.Writer, http.StatusBadRequest, err.Error())
+		pkg.NewRes(400, &config.Result{
+			Data: err.Error(),
+		}).Send(ctx)
+		return
+	}
+	product.Photo_product = ctx.MustGet("productImage").(string)
+
+	_, err = govalidator.ValidateStruct(&product)
+	if err != nil {
+		pkg.NewRes(401, &config.Result{
+			Data: err.Error(),
+		}).Send(ctx)
 		return
 	}
 
 	result, err := h.CreateProduct(&product)
 	if err != nil {
-		pkg.Response(ctx.Writer, http.StatusBadRequest, err.Error())
+		pkg.NewRes(400, &config.Result{
+			Data: err.Error(),
+		}).Send(ctx)
 		return
 	}
 
-	pkg.Response(ctx.Writer, http.StatusCreated, result)
+	pkg.NewRes(201, result).Send(ctx)
 }
 
 // Get Product
@@ -44,76 +59,94 @@ func (h *HandlerProduct) GetProduct(ctx *gin.Context) {
 
 	page, err := strconv.Atoi(pageStr)
 	if err != nil {
-		pkg.Response(ctx.Writer, http.StatusBadRequest, err.Error())
+		pkg.NewRes(400, &config.Result{
+			Data: err.Error(),
+		}).Send(ctx)
 		return
 	}
 	offset := (page - 1) * 10
 
+	// Search Products
 	if len(search) > 0 {
-		result, err := h.SearchProduct(search, offset)
+		result, err := h.SearchProduct(search, page, offset)
 		if err != nil {
-			pkg.Response(ctx.Writer, http.StatusBadRequest, err.Error())
+			pkg.NewRes(400, &config.Result{
+				Data: err.Error(),
+			}).Send(ctx)
 			return
 		}
-		pkg.Response(ctx.Writer, http.StatusOK, result)
+		pkg.NewRes(200, result).Send(ctx)
 		return
 	}
 
+	// Sort Products
 	if len(sort) > 0 {
-		result, err := h.SortProduct(sort, offset)
+		result, err := h.SortProduct(sort, page, offset)
 		if err != nil {
-			pkg.Response(ctx.Writer, http.StatusBadRequest, err.Error())
+			pkg.NewRes(400, &config.Result{
+				Data: err.Error(),
+			}).Send(ctx)
 			return
 		}
-		pkg.Response(ctx.Writer, http.StatusOK, result)
+		pkg.NewRes(200, result).Send(ctx)
 		return
 	}
 
-	result, err := h.ReadProduct(offset)
+	// All Products
+	result, err := h.FetchProduct(page, offset)
 	if err != nil {
-		pkg.Response(ctx.Writer, http.StatusBadRequest, err.Error())
+		pkg.NewRes(400, &config.Result{
+			Data: err.Error(),
+		}).Send(ctx)
 		return
 	}
-
-	pkg.Response(ctx.Writer, http.StatusOK, result)
+	pkg.NewRes(200, result).Send(ctx)
 }
 
 // Update Product
 func (h *HandlerProduct) PatchProduct(ctx *gin.Context) {
 	id := ctx.Param("id")
-
-	var product models.Product
+	product := models.Product{}
+	var err error
 
 	if err := ctx.ShouldBind(&product); err != nil {
-		pkg.Response(ctx.Writer, http.StatusBadRequest, err.Error())
+		pkg.NewRes(400, &config.Result{
+			Data: err.Error(),
+		}).Send(ctx)
+		return
+	}
+	product.Photo_product = ctx.MustGet("productImage").(string)
+
+	_, err = govalidator.ValidateStruct(&product)
+	if err != nil {
+		pkg.NewRes(401, &config.Result{
+			Data: err.Error(),
+		}).Send(ctx)
 		return
 	}
 
 	result, err := h.UpdateProduct(id, &product)
 	if err != nil {
-		pkg.Response(ctx.Writer, http.StatusBadRequest, err.Error())
+		pkg.NewRes(400, &config.Result{
+			Data: err.Error(),
+		}).Send(ctx)
 		return
 	}
 
-	pkg.Response(ctx.Writer, http.StatusOK, result)
+	pkg.NewRes(200, result).Send(ctx)
 }
 
 // Delete Product
 func (h *HandlerProduct) DeleteProduct(ctx *gin.Context) {
 	id := ctx.Param("id")
 
-	var product models.Product
-
-	if err := ctx.ShouldBind(&product); err != nil {
-		pkg.Response(ctx.Writer, http.StatusBadRequest, err.Error())
-		return
-	}
-
-	result, err := h.RemoveProduct(id, &product)
+	result, err := h.RemoveProduct(id)
 	if err != nil {
-		pkg.Response(ctx.Writer, http.StatusBadRequest, err.Error())
+		pkg.NewRes(400, &config.Result{
+			Data: err.Error(),
+		}).Send(ctx)
 		return
 	}
 
-	pkg.Response(ctx.Writer, http.StatusOK, result)
+	pkg.NewRes(200, result).Send(ctx)
 }

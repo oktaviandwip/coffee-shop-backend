@@ -1,8 +1,8 @@
 package main
 
 import (
-	"coffee/internal/routers"
-	"coffee/pkg"
+	"coffeeshop/internal/routers"
+	"coffeeshop/pkg"
 	"log"
 
 	_ "github.com/joho/godotenv/autoload"

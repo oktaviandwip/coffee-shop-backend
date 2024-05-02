@@ -1,14 +1,24 @@
 package repository
 
 import (
-	"coffee/internal/models"
+	"coffeeshop/config"
+	"coffeeshop/internal/models"
 	"errors"
+	"math"
 	"strings"
 
 	"github.com/jmoiron/sqlx"
 	"github.com/lib/pq"
 )
 
+type RepoProductIF interface {
+	CreateProduct(data *models.Product) (*config.Result, error)
+	FetchProduct(page, offset int) (*config.Result, error)
+	SearchProduct(searchStr string, page, offset int) (*config.Result, error)
+	SortProduct(sortStr string, page, offset int) (*config.Result, error)
+	UpdateProduct(id string, data *models.Product) (*config.Result, error)
+	RemoveProduct(id string) (*config.Result, error)
+}
 type RepoProduct struct {
 	*sqlx.DB
 }
@@ -18,34 +28,32 @@ func NewProduct(db *sqlx.DB) *RepoProduct {
 }
 
 // Create Product
-func (r *RepoProduct) CreateProduct(data *models.Product) (string, error) {
-	q := `INSERT INTO public.products(
-					photo_product,
-					product_name,
-					price,
-					description,
-					size,
-					delivery_method,
-					start_hour,
-					end_hour,
-					stock,
-					product_type
+func (r *RepoProduct) CreateProduct(data *models.Product) (*config.Result, error) {
+	q := `
+			INSERT INTO products(
+				photo_product,
+				product_name,
+				price,
+				description,
+				size,
+				delivery_method,
+				start_hour,
+				end_hour,
+				stock,
+				product_type
 			)
 			VALUES(
-					$1,
-					$2,
-					$3,
-					$4,
-					$5,
-					$6,
-					$7,
-					$8,
-					$9,
-					$10
+				$1,
+				$2,
+				$3,
+				$4,
+				$5,
+				$6,
+				$7,
+				$8,
+				$9,
+				$10
 			)`
-
-	size := pq.Array(data.Size)
-	deliveryMethod := pq.Array(data.Delivery_method)
 
 	_, err := r.Exec(
 		q,
@@ -53,33 +61,37 @@ func (r *RepoProduct) CreateProduct(data *models.Product) (string, error) {
 		data.Product_name,
 		data.Price,
 		data.Description,
-		size,
-		deliveryMethod,
+		pq.Array(data.Size),
+		pq.Array(data.Delivery_method),
 		data.Start_hour,
 		data.End_hour,
 		data.Stock,
 		data.Product_type,
 	)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
-	return "1 data product created", nil
+	return &config.Result{Message: "1 data product created"}, nil
 }
 
 // Get Product
-func (r *RepoProduct) ReadProduct(offset int) ([]*models.Product, error) {
-	q := `SELECT * FROM public.products LIMIT $1 OFFSET $2`
+func (r *RepoProduct) FetchProduct(page, offset int) (*config.Result, error) {
 
+	// All Products
+	q := "SELECT * FROM products ORDER BY product_id LIMIT $1 OFFSET $2"
 	limit := 10
+
 	rows, err := r.Queryx(q, limit, offset)
 	if err != nil {
 		return nil, err
 	}
+	defer rows.Close()
 
-	var products []*models.Product
+	products := models.Products{}
+
 	for rows.Next() {
-		var product models.Product
+		product := models.Product{}
 		var size string
 		var deliveryMethod string
 
@@ -112,20 +124,39 @@ func (r *RepoProduct) ReadProduct(offset int) ([]*models.Product, error) {
 		product.Size = strings.Split(size, ",")
 		product.Delivery_method = strings.Split(deliveryMethod, ",")
 
-		products = append(products, &product)
+		products = append(products, product)
 	}
 
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
 
-	return products, nil
+	// Meta Data
+	var count int
+	var metas config.Metas
+
+	m := "SELECT COUNT(product_id) as count FROM products"
+	err = r.Get(&count, r.Rebind(m))
+	if err != nil {
+		return nil, err
+	}
+
+	check := math.Ceil(float64(count) / float64(10))
+	metas.Total = count
+	if count > 0 && page != int(check) {
+		metas.Next = page + 1
+	}
+
+	if page != 1 {
+		metas.Prev = page - 1
+	}
+
+	return &config.Result{Data: products, Meta: metas}, nil
 }
 
 // Search Product
-func (r *RepoProduct) SearchProduct(searchStr string, offset int) ([]*models.Product, error) {
-	q := `SELECT * FROM public.products WHERE product_name ILIKE $1 LIMIT $2 OFFSET $3`
-
+func (r *RepoProduct) SearchProduct(searchStr string, page, offset int) (*config.Result, error) {
+	q := "SELECT * FROM products WHERE product_name ILIKE $1 ORDER BY product_name ASC LIMIT $2 OFFSET $3"
 	search := "%" + searchStr + "%"
 	limit := 10
 
@@ -133,10 +164,12 @@ func (r *RepoProduct) SearchProduct(searchStr string, offset int) ([]*models.Pro
 	if err != nil {
 		return nil, err
 	}
+	defer rows.Close()
 
-	var products []*models.Product
+	products := models.Products{}
+
 	for rows.Next() {
-		var product models.Product
+		product := models.Product{}
 		var size string
 		var deliveryMethod string
 
@@ -169,29 +202,51 @@ func (r *RepoProduct) SearchProduct(searchStr string, offset int) ([]*models.Pro
 		product.Size = strings.Split(size, ",")
 		product.Delivery_method = strings.Split(deliveryMethod, ",")
 
-		products = append(products, &product)
+		products = append(products, product)
 	}
 
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
 
-	return products, nil
-}
+	// Meta Data
+	var count int
+	var metas config.Metas
 
-// Sort Product
-func (r *RepoProduct) SortProduct(sortStr string, offset int) ([]*models.Product, error) {
-	q := `SELECT * FROM public.products WHERE product_type = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3`
-
-	limit := 10
-	rows, err := r.Queryx(q, sortStr, limit, offset)
+	m := "SELECT COUNT(product_id) as count FROM products WHERE product_name ILIKE ?"
+	err = r.Get(&count, r.Rebind(m), search)
 	if err != nil {
 		return nil, err
 	}
 
-	var products []*models.Product
+	check := math.Ceil(float64(count) / float64(10))
+	metas.Total = count
+	if count > 0 && page != int(check) {
+		metas.Next = page + 1
+	}
+
+	if page != 1 {
+		metas.Prev = page - 1
+	}
+
+	return &config.Result{Data: products, Meta: metas}, nil
+}
+
+// Sort Product
+func (r *RepoProduct) SortProduct(sortStr string, page, offset int) (*config.Result, error) {
+	q := "SELECT * FROM products WHERE product_type = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3"
+	limit := 10
+
+	rows, err := r.Queryx(q, sortStr, limit, offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	products := models.Products{}
+
 	for rows.Next() {
-		var product models.Product
+		product := models.Product{}
 		var size string
 		var deliveryMethod string
 
@@ -224,33 +279,54 @@ func (r *RepoProduct) SortProduct(sortStr string, offset int) ([]*models.Product
 		product.Size = strings.Split(size, ",")
 		product.Delivery_method = strings.Split(deliveryMethod, ",")
 
-		products = append(products, &product)
+		products = append(products, product)
 	}
 
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
 
-	return products, nil
+	// Meta Data
+	var count int
+	var metas config.Metas
+
+	m := "SELECT COUNT(product_id) as count FROM products WHERE product_type = ?"
+	err = r.Get(&count, r.Rebind(m), sortStr)
+	if err != nil {
+		return nil, err
+	}
+
+	check := math.Ceil(float64(count) / float64(10))
+	metas.Total = count
+	if count > 0 && page != int(check) {
+		metas.Next = page + 1
+	}
+
+	if page != 1 {
+		metas.Prev = page - 1
+	}
+
+	return &config.Result{Data: products, Meta: metas}, nil
 }
 
 // Update Product
-func (r *RepoProduct) UpdateProduct(id string, data *models.Product) (string, error) {
+func (r *RepoProduct) UpdateProduct(id string, data *models.Product) (*config.Result, error) {
 	q := `
-		UPDATE public.products
+		UPDATE products
 		SET 
 			photo_product = COALESCE(NULLIF($1, ''), photo_product),
 			product_name = COALESCE(NULLIF($2, ''), product_name),
 			price = COALESCE(NULLIF($3, 0), price),
 			description = COALESCE(NULLIF($4, ''), description),
-			size = COALESCE(NULLIF($5, '{}'::varchar[]), size),
-			start_hour = COALESCE(CAST(NULLIF($6, '') AS TIME), start_hour),
-			end_hour = COALESCE(CAST(NULLIF($7, '') AS TIME), end_hour),
-			stock = COALESCE(NULLIF($8, 0), stock),
-			product_type = COALESCE(NULLIF($9, ''), product_type),
+			size = COALESCE(NULLIF($5, null)::varchar[], size),
+			delivery_method = COALESCE(NULLIF($6, null)::varchar[], delivery_method),
+			start_hour = COALESCE(CAST(NULLIF($7, '') AS TIME), start_hour),
+			end_hour = COALESCE(CAST(NULLIF($8, '') AS TIME), end_hour),
+			stock = COALESCE(NULLIF($9, 0), stock),
+			product_type = COALESCE(NULLIF($10, ''), product_type),
 			updated_at = NOW()
 		WHERE
-			product_id = $10
+			product_id = $11
 	`
 
 	result, err := r.Exec(q,
@@ -259,6 +335,7 @@ func (r *RepoProduct) UpdateProduct(id string, data *models.Product) (string, er
 		data.Price,
 		data.Description,
 		pq.Array(data.Size),
+		pq.Array(data.Delivery_method),
 		data.Start_hour,
 		data.End_hour,
 		data.Stock,
@@ -266,42 +343,40 @@ func (r *RepoProduct) UpdateProduct(id string, data *models.Product) (string, er
 		id,
 	)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	if rowsAffected == 0 {
-		return "", errors.New("no product was updated ")
+		return nil, errors.New("no product was updated ")
 	}
 
-	return "1 data product updated", nil
+	return &config.Result{Message: "1 data product updated"}, nil
 }
 
 // Delete Product
-func (r *RepoProduct) RemoveProduct(id string, data *models.Product) (string, error) {
+func (r *RepoProduct) RemoveProduct(id string) (*config.Result, error) {
 	q := `
-	DELETE FROM public.products
-	WHERE
-		product_id = :product_id
-`
-	data.Product_id = id
-	result, err := r.NamedExec(q, data)
+	DELETE FROM products
+	WHERE product_id = $1
+	`
+	result, err := r.Exec(q, id)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	if rowsAffected == 0 {
-		return "", errors.New("no product was deleted ")
+		return nil, errors.New("no product was deleted")
 	}
 
-	return "1 data product deleted", nil
+	return &config.Result{Message: "1 product deleted"}, nil
 }

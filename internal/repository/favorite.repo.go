@@ -1,12 +1,20 @@
 package repository
 
 import (
-	"coffee/internal/models"
+	"coffeeshop/config"
+	"coffeeshop/internal/models"
 	"errors"
+	"math"
 
 	"github.com/jmoiron/sqlx"
 )
 
+type RepoFavoriteIF interface {
+	CreateFavorite(data *models.Favorite) (*config.Result, error)
+	FetchFavorite(user_id string, page, offset int) (*config.Result, error)
+	UpdateFavorite(user_id, product_id string, data *models.Favorite) (*config.Result, error)
+	RemoveFavorite(userId, productId string) (*config.Result, error)
+}
 type RepoFavorite struct {
 	*sqlx.DB
 }
@@ -16,7 +24,7 @@ func NewFavorite(db *sqlx.DB) *RepoFavorite {
 }
 
 // Create Favorite
-func (r *RepoFavorite) CreateFavorite(data *models.Favorite) (string, error) {
+func (r *RepoFavorite) CreateFavorite(data *models.Favorite) (*config.Result, error) {
 	q := `INSERT INTO public.favorites(
 				user_id,
 				product_id
@@ -29,41 +37,47 @@ func (r *RepoFavorite) CreateFavorite(data *models.Favorite) (string, error) {
 	_, err := r.NamedExec(
 		q, data)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
-	return "1 data favorite created", nil
+	return &config.Result{Message: "1 data favorite created"}, nil
 }
 
 // Get Favorite
-func (r *RepoFavorite) ReadFavorite(user_id string, offset int) ([]*models.Favorite, error) {
-	q := `SELECT * FROM public.favorites WHERE user_id = $1 LIMIT $2 OFFSET $3`
-
+func (r *RepoFavorite) FetchFavorite(user_id string, page, offset int) (*config.Result, error) {
+	q := "SELECT * FROM favorites WHERE user_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?"
+	data := models.Favorites{}
 	limit := 10
-	rows, err := r.Queryx(q, user_id, limit, offset)
+
+	if err := r.Select(&data, r.Rebind(q), user_id, limit, offset); err != nil {
+		return nil, err
+	}
+
+	// Meta Data
+	var count int
+	var metas config.Metas
+
+	m := "SELECT COUNT(user_id) as count FROM favorites WHERE user_id = ?"
+	err := r.Get(&count, r.Rebind(m), user_id)
 	if err != nil {
 		return nil, err
 	}
 
-	var favorites []*models.Favorite
-	for rows.Next() {
-		var favorite models.Favorite
-		if err := rows.StructScan(&favorite); err != nil {
-			return nil, err
-		}
-
-		favorites = append(favorites, &favorite)
+	check := math.Ceil(float64(count) / float64(10))
+	metas.Total = count
+	if count > 0 && page != int(check) {
+		metas.Next = page + 1
 	}
 
-	if err := rows.Err(); err != nil {
-		return nil, err
+	if page != 1 {
+		metas.Prev = page - 1
 	}
 
-	return favorites, nil
+	return &config.Result{Data: data, Meta: metas}, nil
 }
 
 // Update Favorite
-func (r *RepoFavorite) UpdateFavorite(user_id, product_id string, data *models.Favorite) (string, error) {
+func (r *RepoFavorite) UpdateFavorite(user_id, product_id string, data *models.Favorite) (*config.Result, error) {
 	q := `
 		UPDATE public.favorites
 		SET 
@@ -83,44 +97,40 @@ func (r *RepoFavorite) UpdateFavorite(user_id, product_id string, data *models.F
 	)
 
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	if rowsAffected == 0 {
-		return "", errors.New("no user was updated ")
+		return nil, errors.New("no user was updated ")
 	}
 
-	return "1 data favorite updated", nil
+	return &config.Result{Message: "1 data favorite updated"}, nil
 }
 
 // Delete Favorite
-func (r *RepoFavorite) RemoveFavorite(userId, productId string, data *models.Favorite) (string, error) {
+func (r *RepoFavorite) RemoveFavorite(userId, productId string) (*config.Result, error) {
 	q := `
 	DELETE FROM public.favorites
-	WHERE
-		user_id = :user_id AND product_id = :product_id
-`
-	data.User_id = userId
-	data.Product_id = productId
-
-	result, err := r.NamedExec(q, data)
+	WHERE user_id = $1 AND product_id = $2
+	`
+	result, err := r.Exec(q, userId, productId)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	if rowsAffected == 0 {
-		return "", errors.New("no user was deleted ")
+		return nil, errors.New("no user was deleted ")
 	}
 
-	return "1 data favorite deleted", nil
+	return &config.Result{Message: "1 data favorite deleted"}, nil
 }

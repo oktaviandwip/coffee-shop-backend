@@ -1,38 +1,42 @@
 package handlers
 
 import (
-	"coffee/internal/models"
-	"coffee/internal/repository"
-	"coffee/pkg"
-	"net/http"
+	"coffeeshop/config"
+	"coffeeshop/internal/models"
+	"coffeeshop/internal/repository"
+	"coffeeshop/pkg"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
 
 type HandlerFavorite struct {
-	*repository.RepoFavorite
+	repository.RepoFavoriteIF
 }
 
-func NewFavorite(r *repository.RepoFavorite) *HandlerFavorite {
+func NewFavorite(r repository.RepoFavoriteIF) *HandlerFavorite {
 	return &HandlerFavorite{r}
 }
 
 // Create Favorite
 func (h *HandlerFavorite) PostFavorite(ctx *gin.Context) {
-	var favorite models.Favorite
+	favorite := models.Favorite{}
 	if err := ctx.ShouldBind(&favorite); err != nil {
-		pkg.Response(ctx.Writer, http.StatusBadRequest, err.Error())
+		pkg.NewRes(400, &config.Result{
+			Data: err.Error(),
+		}).Send(ctx)
 		return
 	}
 
 	result, err := h.CreateFavorite(&favorite)
 	if err != nil {
-		pkg.Response(ctx.Writer, http.StatusBadRequest, err.Error())
+		pkg.NewRes(400, &config.Result{
+			Data: err.Error(),
+		}).Send(ctx)
 		return
 	}
 
-	pkg.Response(ctx.Writer, http.StatusCreated, result)
+	pkg.NewRes(201, result).Send(ctx)
 }
 
 // Get Favorite
@@ -40,39 +44,46 @@ func (h *HandlerFavorite) GetFavorite(ctx *gin.Context) {
 	user_id := ctx.Query("user_id")
 	page, err := strconv.Atoi(ctx.Query("page"))
 	if err != nil {
-		pkg.Response(ctx.Writer, http.StatusBadRequest, err.Error())
+		pkg.NewRes(400, &config.Result{
+			Data: err.Error(),
+		}).Send(ctx)
 		return
 	}
 	offset := (page - 1) * 10
 
-	result, err := h.ReadFavorite(user_id, offset)
+	result, err := h.FetchFavorite(user_id, page, offset)
 	if err != nil {
-		pkg.Response(ctx.Writer, http.StatusBadRequest, err.Error())
+		pkg.NewRes(400, &config.Result{
+			Data: err.Error(),
+		}).Send(ctx)
 		return
 	}
 
-	pkg.Response(ctx.Writer, http.StatusOK, result)
+	pkg.NewRes(200, result).Send(ctx)
 }
 
 // Update Favorite
 func (h *HandlerFavorite) PatchFavorite(ctx *gin.Context) {
 	user_id := ctx.Param("user_id")
 	product_id := ctx.Param("product_id")
-
-	var favorite models.Favorite
+	favorite := models.Favorite{}
 
 	if err := ctx.ShouldBind(&favorite); err != nil {
-		pkg.Response(ctx.Writer, http.StatusBadRequest, err.Error())
+		pkg.NewRes(400, &config.Result{
+			Data: err.Error(),
+		}).Send(ctx)
 		return
 	}
 
 	result, err := h.UpdateFavorite(user_id, product_id, &favorite)
 	if err != nil {
-		pkg.Response(ctx.Writer, http.StatusBadRequest, err.Error())
+		pkg.NewRes(400, &config.Result{
+			Data: err.Error(),
+		}).Send(ctx)
 		return
 	}
 
-	pkg.Response(ctx.Writer, http.StatusOK, result)
+	pkg.NewRes(200, result).Send(ctx)
 }
 
 // Delete Favorite
@@ -80,18 +91,13 @@ func (h *HandlerFavorite) DeleteFavorite(ctx *gin.Context) {
 	user_id := ctx.Param("user_id")
 	product_id := ctx.Param("product_id")
 
-	var favorite models.Favorite
-
-	if err := ctx.ShouldBind(&favorite); err != nil {
-		pkg.Response(ctx.Writer, http.StatusBadRequest, err.Error())
-		return
-	}
-
-	result, err := h.RemoveFavorite(user_id, product_id, &favorite)
+	result, err := h.RemoveFavorite(user_id, product_id)
 	if err != nil {
-		pkg.Response(ctx.Writer, http.StatusBadRequest, err.Error())
+		pkg.NewRes(400, &config.Result{
+			Data: err.Error(),
+		}).Send(ctx)
 		return
 	}
 
-	pkg.Response(ctx.Writer, http.StatusOK, result)
+	pkg.NewRes(200, result).Send(ctx)
 }
