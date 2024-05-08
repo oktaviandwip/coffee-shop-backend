@@ -1,5 +1,5 @@
 <h1 align="center">
-  Golang Restfull Api With Gin-gonic
+  Golang Restfull API with Gin-gonic
 </h1>
 
 <p align="center"><img src="https://yt3.ggpht.com/ytc/AKedOLT7YD9x6PiR-CfbBbFC3wz2WatiIZFrI_I0v-6k=s900-c-k-c0x00ffffff-no-rj" width="300px" alt="fazztrack.svg" /></p>
