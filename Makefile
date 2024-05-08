@@ -10,7 +10,9 @@ install:
 	go get -u ./... && go mod tidy
 
 build:
-	CGO_ENABLED=0 GOOS=linux go build -o ${BUILD}
+	set CGO_ENABLED=0 
+	set GOOS=linux 
+	go build -o ${BUILD} ./cmd/main.go
 
 test:
 	go test -cover -v ./...
