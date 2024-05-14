@@ -30,7 +30,10 @@ func (h *HandlerProduct) PostProduct(ctx *gin.Context) {
 		}).Send(ctx)
 		return
 	}
-	product.Photo_product = ctx.MustGet("productImage").(string)
+
+	if result, ok := ctx.Get("productImage"); ok && result != nil {
+		product.Photo_product = result.(string)
+	}
 
 	_, err = govalidator.ValidateStruct(&product)
 	if err != nil {
@@ -115,7 +118,10 @@ func (h *HandlerProduct) PatchProduct(ctx *gin.Context) {
 		}).Send(ctx)
 		return
 	}
-	product.Photo_product = ctx.MustGet("productImage").(string)
+
+	if result, ok := ctx.Get("productImage"); ok && result != nil {
+		product.Photo_product = result.(string)
+	}
 
 	_, err = govalidator.ValidateStruct(&product)
 	if err != nil {

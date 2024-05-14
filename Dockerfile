@@ -18,4 +18,4 @@ ENV PATH="/app:${PATH}"
 
 EXPOSE 8081
 
-ENTRYPOINT [ "/app/goback" ]
+ENTRYPOINT [ "goback" ]

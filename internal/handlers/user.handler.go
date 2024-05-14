@@ -22,7 +22,7 @@ func NewUser(r repository.RepoUserIF) *HandlerUser {
 func (h *HandlerUser) PostUser(ctx *gin.Context) {
 	var err error
 	user := models.User{
-		Role: "user",
+		Role: "admin",
 	}
 
 	if err := ctx.ShouldBind(&user); err != nil {
